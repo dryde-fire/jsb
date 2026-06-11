@@ -1,0 +1,32 @@
+{
+  "_comment": "Configurazione Second Brain — Personal PC (editor + reader, no elaborazione)",
+  "_install_path": "Salvare come %USERPROFILE%\\.jsb-config.json",
+  "_version": "1.0",
+  "machine_id": "personal-sandr",
+  "vault_path": "C:\\Users\\sandr\\JSB",
+  "claude_code_projects_root": "C:\\Users\\sandr\\Code",
+  "role": "editor-only",
+  "_role_options": "elaborator-fast | elaborator-quality | editor-only",
+  "_note_role": "Questo PC scrive in inbox/ e legge da wiki/. NON esegue Ollama. Sync via Remotely Save S3.",
+  "ollama": {
+    "_note": "Disabilitato: questo PC non elabora. I campi sono presenti per compatibilità ma non usati.",
+    "url": null,
+    "model_default": null,
+    "model_quality": null
+  },
+  "ingest": {
+    "_note": "Non applicabile a editor-only. Campi presenti per compatibilità schema."
+  },
+  "bridge": {
+    "enabled": true,
+    "_note": "Lettura del vault funziona (skill /recall). Scrittura in inbox/ funziona (skill /distill-lesson). Elaborazione avviene altrove.",
+    "auto_distill_on_adr": true,
+    "auto_distill_quality_threshold": "manual_review"
+  },
+  "lightrag": {
+    "url": "http://192.168.1.X:9621",
+    "api_key": "jsb-lightrag-localkey-2026",
+    "timeout": 30,
+    "_note": "Sostituisci 192.168.1.X con IP reale di Office PC."
+  }
+}

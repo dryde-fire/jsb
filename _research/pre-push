@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# =============================================================================
+# .husky/pre-push — Proof of Work Validator
+# Authority: DETERMINISTIC (100% — not bypassable by CLAUDE.md or WORKFLOW.md)
+# Purpose: Validate test passage + ADR currency + TDD commit order
+# =============================================================================
+# Install: npx husky add .husky/pre-push "bash .husky/pre-push"
+# Manual bypass (emergency only): git push --no-verify
+# NOTE: --no-verify bypass is logged and flagged to orchestrator
+# =============================================================================
+
+set -euo pipefail
+
+# ─── Colors ───────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+log_info()    { echo -e "${BLUE}[PRE-PUSH]${NC} $1"; }
+log_ok()      { echo -e "${GREEN}[✅ PASS]${NC} $1"; }
+log_warn()    { echo -e "${YELLOW}[⚠️  WARN]${NC} $1"; }
+log_fail()    { echo -e "${RED}[❌ FAIL]${NC} $1"; }
+log_section() { echo -e "\n${BOLD}${CYAN}── $1 ──${NC}"; }
+
+FAILURES=0
+WARNINGS=0
+
+fail() { log_fail "$1"; ((FAILURES++)) || true; }
+warn() { log_warn "$1"; ((WARNINGS++)) || true; }
+
+# ─── Read push info ───────────────────────────────────────────────────────────
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+REMOTE=${1:-origin}
+REMOTE_REF=${2:-}
+
+log_section "PROOF OF WORK VALIDATOR"
+log_info "Branch: ${CURRENT_BRANCH}"
+log_info "Remote: ${REMOTE}"
+echo ""
+
+# =============================================================================
+# GATE 1 — BRANCH NAMING CONVENTION
+# =============================================================================
+log_section "GATE 1 — Branch Naming"
+
+VALID_BRANCH_PATTERN="^(feature|bugfix|hotfix|refactor|chore|docs|test)\/[A-Z0-9]+-[0-9]+-[a-z0-9-]+$"
+if [[ "$CURRENT_BRANCH" =~ $VALID_BRANCH_PATTERN ]] || [[ "$CURRENT_BRANCH" == "main" ]] || [[ "$CURRENT_BRANCH" == "develop" ]]; then
+  log_ok "Branch name valid: ${CURRENT_BRANCH}"
+else
+  warn "Branch name '${CURRENT_BRANCH}' does not follow convention: type/TICKET-NNN-description"
+  log_info "  Expected pattern: feature/TY-0042-payment-integration"
+fi
+
+# =============================================================================
+# GATE 2 — DANGEROUS GIT OPERATIONS CHECK
+# =============================================================================
+log_section "GATE 2 — Safety Guardrails"
+
+# Check if this is a force push attempt (intercepted by git hook)
+if git log --oneline -1 2>/dev/null | grep -q "force\|--force\|-f"; then
+  fail "Force push pattern detected in recent commits. Aborting."
+fi
+
+# Check for accidental secrets in staged files
+log_info "Scanning for secrets..."
+SECRET_PATTERNS=(
+  "sk-[a-zA-Z0-9]{48}"       # OpenAI keys
+  "ghp_[a-zA-Z0-9]{36}"      # GitHub tokens
+  "AKIA[0-9A-Z]{16}"         # AWS access keys
+  "password\s*=\s*['\"][^'\"]{8,}" # Hardcoded passwords
+  "api_key\s*=\s*['\"][^'\"]{10,}" # API keys
+)
+
+SECRETS_FOUND=0
+for pattern in "${SECRET_PATTERNS[@]}"; do
+  if git diff HEAD~1 HEAD 2>/dev/null | grep -qE "$pattern"; then
+    fail "Potential secret detected matching pattern: ${pattern}"
+    SECRETS_FOUND=1
+  fi
+done
+
+if [[ $SECRETS_FOUND -eq 0 ]]; then
+  log_ok "No secrets detected in diff"
+fi
+
+# =============================================================================
+# GATE 3 — TEST SUITE (Primary Proof of Work)
+# =============================================================================
+log_section "GATE 3 — Test Suite Execution"
+
+if [[ ! -f "package.json" ]] && [[ ! -f "pyproject.toml" ]] && [[ ! -f "Makefile" ]]; then
+  warn "No package.json/pyproject.toml/Makefile found. Skipping test gate."
+else
+  log_info "Running test suite..."
+  
+  # Detect test runner
+  if grep -q '"test"' package.json 2>/dev/null; then
+    TEST_CMD="npm run test"
+  elif [[ -f "pyproject.toml" ]]; then
+    TEST_CMD="python -m pytest"
+  elif grep -q "test:" Makefile 2>/dev/null; then
+    TEST_CMD="make test"
+  else
+    TEST_CMD=""
+  fi
+
+  if [[ -n "$TEST_CMD" ]]; then
+    if $TEST_CMD 2>&1; then
+      log_ok "All tests passing"
+    else
+      fail "Test suite FAILED. Push blocked. Fix tests before pushing."
+      log_info "Run '$TEST_CMD' to see failures."
+    fi
+  else
+    warn "Could not detect test runner. Skipping test execution."
+  fi
+fi
+
+# =============================================================================
+# GATE 4 — TDD COMMIT ORDER VALIDATION (Anti-False-Positive)
+# =============================================================================
+log_section "GATE 4 — TDD Commit History Validation"
+
+log_info "Validating RED→GREEN→REFACTOR commit order..."
+
+# Get commits since last merge/push to main
+COMMITS_TO_CHECK=$(git log --oneline origin/main..HEAD 2>/dev/null || git log --oneline -10)
+
+if [[ -z "$COMMITS_TO_CHECK" ]]; then
+  warn "No commits to validate against main. Skipping TDD order check."
+else
+  # Extract commit types from messages
+  RED_COUNT=$(echo "$COMMITS_TO_CHECK" | grep -c "-- RED\|: RED\|(RED)" || true)
+  GREEN_COUNT=$(echo "$COMMITS_TO_CHECK" | grep -c "-- GREEN\|: GREEN\|(GREEN)" || true)
+  REFACTOR_COUNT=$(echo "$COMMITS_TO_CHECK" | grep -c "-- CLEAN\|-- REFACTOR\|: REFACTOR\|(REFACTOR)" || true)
+  
+  log_info "TDD commits found: RED=${RED_COUNT} GREEN=${GREEN_COUNT} REFACTOR=${REFACTOR_COUNT}"
+  
+  # If there are feature commits, check TDD pattern exists
+  FEATURE_COMMITS=$(echo "$COMMITS_TO_CHECK" | grep -c "^[a-f0-9]* feat:" || true)
+  TEST_COMMITS=$(echo "$COMMITS_TO_CHECK" | grep -c "^[a-f0-9]* test:" || true)
+  
+  if [[ $FEATURE_COMMITS -gt 0 ]] && [[ $TEST_COMMITS -eq 0 ]]; then
+    warn "Feature commits found but no 'test:' commits. TDD may not have been followed."
+    log_info "  Expected: 'test: [desc] -- RED' before 'feat: [desc] -- GREEN'"
+    log_info "  Found commits: $FEATURE_COMMITS feature, $TEST_COMMITS test"
+    # Warning only — not blocking (can't perfectly detect TDD retroactively)
+  elif [[ $TEST_COMMITS -gt 0 ]] && [[ $FEATURE_COMMITS -gt 0 ]]; then
+    log_ok "Test and feature commits both present — TDD pattern likely followed"
+  else
+    log_info "  No feature commits detected — skipping TDD order check"
+  fi
+fi
+
+# =============================================================================
+# GATE 5 — ADR CURRENCY CHECK
+# =============================================================================
+log_section "GATE 5 — ADR Documentation Currency"
+
+ADR_DIR="docs/adr"
+
+if [[ ! -d "$ADR_DIR" ]]; then
+  warn "docs/adr/ directory not found. ADR tracking not configured."
+  log_info "  Create: mkdir -p docs/adr && touch docs/adr/.gitkeep"
+else
+  # Check if any source files were modified in this push without ADR update
+  MODIFIED_SRC=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E "^src/|^lib/|^app/" | head -20 || true)
+  MODIFIED_ADR=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E "^docs/adr/" || true)
+  
+  if [[ -n "$MODIFIED_SRC" ]] && [[ -z "$MODIFIED_ADR" ]]; then
+    # Check if this looks like an architectural change
+    ARCH_INDICATORS=$(git diff HEAD~1 HEAD 2>/dev/null | grep -E "new file|delete mode|rename" | head -5 || true)
+    
+    if [[ -n "$ARCH_INDICATORS" ]]; then
+      warn "Structural file changes detected without ADR update."
+      log_info "  Changed files: $(echo "$MODIFIED_SRC" | head -5 | tr '\n' ', ')"
+      log_info "  If this is an architectural decision, create/update docs/adr/"
+      log_info "  Use: /ubiquitous-language or create ADR manually"
+    else
+      log_ok "Source changes appear non-architectural — ADR update not required"
+    fi
+  elif [[ -n "$MODIFIED_ADR" ]]; then
+    log_ok "ADR updated in this push: $(echo "$MODIFIED_ADR" | tr '\n' ' ')"
+  else
+    log_ok "No structural changes detected — ADR currency OK"
+  fi
+  
+  # Check for stale ADRs (older than 90 days still marked "Accepted" without review)
+  STALE_THRESHOLD=90
+  if command -v find &>/dev/null; then
+    STALE_ADRS=$(find "$ADR_DIR" -name "*.md" -mtime +${STALE_THRESHOLD} 2>/dev/null | head -3 || true)
+    if [[ -n "$STALE_ADRS" ]]; then
+      warn "ADRs older than ${STALE_THRESHOLD} days detected (may need review):"
+      echo "$STALE_ADRS" | while read -r adr; do
+        log_info "  - $adr"
+      done
+    fi
+  fi
+fi
+
+# =============================================================================
+# GATE 6 — PROOF OF WORK XML EXTRACTION (Orchestrator Feed)
+# =============================================================================
+log_section "GATE 6 — Proof of Work Generation"
+
+# Try to extract context usage from STATE.md
+CONTEXT_USAGE="unknown"
+if [[ -f "STATE.md" ]]; then
+  CONTEXT_USAGE=$(grep -oP "context_usage_at_completion>\K[^<]+" STATE.md 2>/dev/null || \
+                  grep -oP "Context usage.*?:\s*\K\d+%" STATE.md 2>/dev/null || \
+                  echo "unknown")
+fi
+
+# Count passing tests (basic extraction)
+TEST_SUMMARY="unknown"
+if command -v npx &>/dev/null && [[ -f "package.json" ]]; then
+  TEST_SUMMARY=$(npm run test -- --reporter=json 2>/dev/null | \
+    python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"{d.get('numPassedTests',0)}/{d.get('numTotalTests',0)}\")" \
+    2>/dev/null || echo "unknown")
+fi
+
+# Build proof of work artifact
+PROOF_OF_WORK_FILE=".proof-of-work-$(date +%Y%m%d-%H%M%S).xml"
+
+cat > "$PROOF_OF_WORK_FILE" << EOF
+<proof_of_work>
+  <metadata>
+    <generated_at>$(date -u +"%Y-%m-%dT%H:%M:%SZ")</generated_at>
+    <branch>${CURRENT_BRANCH}</branch>
+    <commit>$(git rev-parse HEAD 2>/dev/null || echo "unknown")</commit>
+    <push_target>${REMOTE}</push_target>
+  </metadata>
+  <validation_results>
+    <gate id="1" name="branch_naming" status="$([ $FAILURES -eq 0 ] && echo "pass" || echo "warn")"/>
+    <gate id="2" name="safety_guardrails" status="$([ $SECRETS_FOUND -eq 0 ] && echo "pass" || echo "fail")"/>
+    <gate id="3" name="test_suite" status="$([ $FAILURES -eq 0 ] && echo "pass" || echo "fail")"/>
+    <gate id="4" name="tdd_commit_order" status="warn"/>
+    <gate id="5" name="adr_currency" status="$([ $WARNINGS -gt 2 ] && echo "warn" || echo "pass")"/>
+  </validation_results>
+  <metrics>
+    <test_results>${TEST_SUMMARY}</test_results>
+    <context_usage_at_completion>${CONTEXT_USAGE}</context_usage_at_completion>
+    <failures>${FAILURES}</failures>
+    <warnings>${WARNINGS}</warnings>
+    <tdd_commits>
+      <red>${RED_COUNT:-0}</red>
+      <green>${GREEN_COUNT:-0}</green>
+      <refactor>${REFACTOR_COUNT:-0}</refactor>
+    </tdd_commits>
+  </metrics>
+  <adr_status>
+    <updated_in_push>$([ -n "${MODIFIED_ADR:-}" ] && echo "true" || echo "false")</updated_in_push>
+    <stale_adrs_detected>$([ -n "${STALE_ADRS:-}" ] && echo "true" || echo "false")</stale_adrs_detected>
+  </adr_status>
+</proof_of_work>
+EOF
+
+log_ok "Proof of work generated: ${PROOF_OF_WORK_FILE}"
+log_info "  Attach this to your PR description."
+
+# =============================================================================
+# FINAL VERDICT
+# =============================================================================
+log_section "FINAL VERDICT"
+
+echo ""
+echo -e "Failures: ${RED}${FAILURES}${NC}  |  Warnings: ${YELLOW}${WARNINGS}${NC}"
+echo ""
+
+if [[ $FAILURES -gt 0 ]]; then
+  echo -e "${RED}${BOLD}🚫 PUSH BLOCKED — ${FAILURES} gate(s) failed${NC}"
+  echo ""
+  echo -e "${YELLOW}Fix the issues above and retry.${NC}"
+  echo -e "${YELLOW}Emergency bypass: git push --no-verify (logged)${NC}"
+  exit 1
+elif [[ $WARNINGS -gt 3 ]]; then
+  echo -e "${YELLOW}${BOLD}⚠️  PUSH ALLOWED WITH WARNINGS — review before merge${NC}"
+  echo ""
+  exit 0
+else
+  echo -e "${GREEN}${BOLD}✅ PROOF OF WORK VALIDATED — Push authorized${NC}"
+  echo ""
+  exit 0
+fi

@@ -1,0 +1,40 @@
+{
+  "_comment": "Configurazione Second Brain — Laptop XPS 15 (GTX 1050 4GB + 8GB RAM)",
+  "_install_path": "Salvare come %USERPROFILE%\\.jsb-config.json",
+  "_version": "1.0",
+  "machine_id": "laptop-xps15",
+  "vault_path": "C:\\JSB",
+  "claude_code_projects_root": "C:\\Users\\sandr\\Code",
+  "role": "elaborator-fast",
+  "_role_options": "elaborator-fast | elaborator-quality | editor-only",
+  "ollama": {
+    "url": "http://localhost:11434",
+    "model_default": "gemma4:e2b",
+    "model_quality": "gemma4:e2b",
+    "_note_quality": "E4B su 8GB RAM è impraticabile, mantengo E2B anche per quality. Usare Office PC per qualità.",
+    "timeout_seconds": 180,
+    "max_retries": 3
+  },
+  "ingest": {
+    "body_char_limit": 10000,
+    "fail_quarantine_after_retries": 3,
+    "archive_on_overwrite": true
+  },
+  "bridge": {
+    "enabled": true,
+    "_note": "Permette a Claude Code di leggere e scrivere nel vault tramite skill /recall e /distill-lesson",
+    "auto_distill_on_adr": true,
+    "auto_distill_quality_threshold": "manual_review"
+  },
+  "wol": {
+    "enabled": true,
+    "_note": "Solo se collegato in Ethernet. WiFi WoWLAN è inaffidabile sul laptop in standby",
+    "interface_preference": "ethernet"
+  },
+  "lightrag": {
+    "url": "http://192.168.1.X:9621",
+    "api_key": "jsb-lightrag-localkey-2026",
+    "timeout": 30,
+    "_note": "Sostituisci 192.168.1.X con IP reale di Office PC. LightRAG non gira qui."
+  }
+}
