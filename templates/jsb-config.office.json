@@ -32,11 +32,5 @@
     "laptop_vault_path": "C:\\JSB",
     "laptop_wake_timeout_seconds": 90,
     "fallback_local_on_wake_failure": true
-  },
-  "lightrag": {
-    "url": "http://localhost:9621",
-    "api_key": "jsb-lightrag-localkey-2026",
-    "timeout": 30,
-    "_note": "LightRAG gira su questo PC (Docker). URL locale."
   }
 }

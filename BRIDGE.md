@@ -142,9 +142,9 @@ mentale ("se domani ti pentirai di averlo scritto, è il momento di pulire
 l'inbox").
 
 **Non fa semantic search.** La skill `/recall` usa full-text ricerca con
-ripgrep. Per fare ricerca per significato (vector search) serve LightRAG, che
-è in **Fase 2 della roadmap**. Per ora, la qualità del tagging è ciò che
-determina la qualità del retrieval.
+ripgrep: l'agente espande la query in sinonimi e segue i `[[link]]`. LightRAG
+è stato valutato e scartato (server sempre acceso, estrazione scarsa con
+modelli piccoli). La qualità di tag e link determina la qualità del retrieval.
 
 **Non modifica file in `wiki/`.** La skill `/distill-lesson` scrive solo in
 `inbox/notes/`. Le elaborazioni esistenti in `wiki/` sono immutabili lato

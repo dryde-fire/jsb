@@ -30,11 +30,5 @@
     "enabled": true,
     "_note": "Solo se collegato in Ethernet. WiFi WoWLAN è inaffidabile sul laptop in standby",
     "interface_preference": "ethernet"
-  },
-  "lightrag": {
-    "url": "http://192.168.1.X:9621",
-    "api_key": "jsb-lightrag-localkey-2026",
-    "timeout": 30,
-    "_note": "Sostituisci 192.168.1.X con IP reale di Office PC. LightRAG non gira qui."
   }
 }

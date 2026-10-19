@@ -12,7 +12,6 @@ Eseguito da Task Scheduler (nightly o orario). Sicuro contro:
 from __future__ import annotations
 
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # BUG FIX: garantisce che `import ingest` funzioni anche se Task Scheduler
@@ -26,64 +25,12 @@ from jsb_core import (  # noqa: E402
     log_msg,
     mark_failure,
     mark_success,
-    parse_frontmatter,
     quarantine_file,
     save_state,
-    split_frontmatter,
 )
 
 
 SUBFOLDERS = ["articles", "notes", "documents", "conversations"]
-
-
-def try_index_in_lightrag(inbox_rel_path: str, cfg: dict) -> None:
-    """
-    Dopo che Ollama ha elaborato un file inbox/, cerca il corrispondente
-    file wiki/ e lo indicizza in LightRAG.
-    Fallisce silenziosamente: se LightRAG è down il watchdog continua.
-    """
-    if not cfg.get("lightrag", {}).get("url"):
-        return  # LightRAG non configurato — skip silenzioso
-
-    try:
-        import ingest_to_lightrag as lr_bot
-        import ingest as ingest_mod
-
-        slug = ingest_mod.make_slug(Path(inbox_rel_path).stem)
-        wiki = cfg["_wiki_dir"]
-
-        for sub in lr_bot.WIKI_SUBFOLDERS:
-            candidate = wiki / sub / f"{slug}.md"
-            if not candidate.exists():
-                continue
-
-            lr_cfg = lr_bot.get_lightrag_cfg(cfg)
-            if not lr_bot.check_health(lr_cfg):
-                log_msg("WARN", "LightRAG non raggiungibile, skip indicizzazione.", cfg)
-                return
-
-            content = candidate.read_text(encoding="utf-8")
-            fm_str, body = split_frontmatter(content)
-            fm = parse_frontmatter(fm_str)
-            vault_rel = str(candidate.relative_to(cfg["_vault_dir"])).replace("\\", "/")
-            lr_content = lr_bot.build_lightrag_content(candidate, fm, body)
-
-            ok, err = lr_bot.insert_document(vault_rel, lr_content, fm, lr_cfg)
-            if ok:
-                lr_state = lr_bot.load_lr_state(cfg)
-                lr_state[vault_rel] = {
-                    "hash": lr_bot.body_hash_str(body),
-                    "indexed_at": datetime.now().isoformat(timespec="seconds"),
-                    "type": fm.get("type", "unknown"),
-                }
-                lr_bot.save_lr_state(lr_state, cfg)
-                log_msg("INFO", f"🔍 LightRAG: {candidate.name}", cfg)
-            else:
-                log_msg("WARN", f"LightRAG {candidate.name}: {err}", cfg)
-            return
-
-    except Exception as e:
-        log_msg("WARN", f"LightRAG hook errore (non bloccante): {e}", cfg)
 
 
 def find_pending_files(cfg: dict, state: dict) -> list[tuple[Path, str, str]]:
@@ -168,8 +115,6 @@ def main() -> int:
         if success:
             mark_success(state, rel_path, file_hash)
             log_msg("INFO", f"✅ {rel_path}", cfg)
-            # Pipeline: dopo Ollama, indicizza subito in LightRAG
-            try_index_in_lightrag(rel_path, cfg)
         else:
             fail_count = mark_failure(state, rel_path, file_hash, error or "unknown")
             log_msg("WARN", f"❌ {rel_path} (fail #{fail_count}): {error}", cfg)

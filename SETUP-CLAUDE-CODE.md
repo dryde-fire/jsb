@@ -227,7 +227,7 @@ Questo livello aggiunge le **skill personalizzate** che collegano Claude Code al
 
 ### Skill `/recall` — Lettura dal vault
 
-Cerca nel Second Brain progetti, decisioni e pattern simili a quello attuale. Usa LightRAG (semantic search) come backend primario, ripgrep come fallback.
+Cerca nel Second Brain progetti, decisioni e pattern simili a quello attuale. Usa ripgrep sul vault locale, espandendo la query in sinonimi e seguendo i `[[link]]` fra note.
 
 **Installazione**:
 ```bash
@@ -261,7 +261,7 @@ cp -r skills/distill-lesson ~/.claude/skills/distill-lesson
 
 ### Configurazione richiesta
 
-Le skill leggono `~/.jsb-config.json` per sapere dove sta il vault e come parlare con LightRAG. Vedi `templates/jsb-config.{laptop,office,personal}.json` e `SECOND-BRAIN.md` sezione 3.
+Le skill leggono `~/.jsb-config.json` per sapere dove sta il vault. Vedi `templates/jsb-config.{laptop,office,personal}.json` e `SECOND-BRAIN.md` sezione 3.
 
 **Cross-LLM**: queste skill sono in formato `agentskills.io v1`. Funzionano identicamente con Claude Code, Codex CLI, Cursor, Gemini CLI, Hermes Agent. Vedi `CROSS-LLM-COMPAT.md`.
 
@@ -417,7 +417,6 @@ Rimane solo quello che i tool non possono sapere al posto tuo: il **tuo dominio*
 
 **Cosa potrebbe arrivare**:
 - Hermes Agent (Q3 2026, opzionale): gateway Telegram/Discord verso Second Brain. Vedi `CROSS-LLM-COMPAT.md` sezione 4.
-- Agentic LightRAG MCP nativo (in valutazione): se LightRAG team rilascia un MCP server ufficiale, sostituirà la skill `/recall` v2.
 
 ---
 

@@ -171,11 +171,10 @@ Template per i tre PC sono in `templates/`:
 | Componente | Stato |
 |---|---|
 | Sistema A — Second Brain (capture/sync/elaborazione) | ✅ Production ready |
-| Sistema A — LightRAG semantic search | ✅ Production ready |
 | Sistema B — Claude Code 6-livelli (Livelli 1-4 esterni) | ✅ Tool installabili |
 | Sistema B — Knowledge Layer (CLAUDE.md, CONTEXT.md, ADR) | 🛠️ Per-progetto, scrivi tu |
 | Sistema B — Governance (WORKFLOW.md) | 🛠️ Per-progetto, scrivi tu |
-| Bridge `/recall` v2 con LightRAG | ✅ Skill operativa |
+| Bridge `/recall` v3 (ripgrep + link fra note) | ✅ Skill operativa |
 | Bridge `/distill-lesson` | ✅ Skill operativa con guardrail |
 | Cross-LLM compat (agentskills.io) | ✅ Skill formattate da subito |
 | Symphony Orchestration | ❌ Out of scope (coperto da superpowers) |

@@ -22,11 +22,5 @@
     "_note": "Lettura del vault funziona (skill /recall). Scrittura in inbox/ funziona (skill /distill-lesson). Elaborazione avviene altrove.",
     "auto_distill_on_adr": true,
     "auto_distill_quality_threshold": "manual_review"
-  },
-  "lightrag": {
-    "url": "http://192.168.1.X:9621",
-    "api_key": "jsb-lightrag-localkey-2026",
-    "timeout": 30,
-    "_note": "Sostituisci 192.168.1.X con IP reale di Office PC."
   }
 }

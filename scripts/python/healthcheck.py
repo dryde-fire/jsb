@@ -169,6 +169,7 @@ def build_report(cfg: dict) -> tuple[str, int]:
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")  # emoji nel report: la console Windows è cp1252
     cfg = load_config()
     report, severity = build_report(cfg)
 
@@ -189,64 +190,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-def check_lightrag(cfg: dict) -> tuple[str, int]:
-    """Verifica stato LightRAG e conta documenti indicizzati."""
-    lr_cfg = cfg.get("lightrag", {})
-    url = lr_cfg.get("url", "")
-    if not url:
-        return "Non configurato (lightrag.url mancante in .jsb-config.json)", 0
-
-    key = lr_cfg.get("api_key", "")
-    headers = {"Authorization": f"Bearer {key}"} if key else {}
-
-    try:
-        r = requests.get(f"{url.rstrip('/')}/health", headers=headers, timeout=5)
-        if r.status_code == 200:
-            # Conta documenti indicizzati dallo state file
-            state_file = cfg["_system_dir"] / ".lightrag-state.json"
-            count = 0
-            if state_file.exists():
-                import json as _json
-                count = len(_json.loads(state_file.read_text(encoding="utf-8")))
-            return f"Online · {count} documenti indicizzati", 0
-        return f"Risposta HTTP {r.status_code}", 1
-    except Exception as e:
-        return f"Non raggiungibile: {e}", 2
-
-
-# Monkey-patch build_report per aggiungere sezione LightRAG
-_original_build_report = build_report
-
-
-def build_report(cfg: dict) -> tuple[str, int]:
-    import requests as _req
-    lines_orig, severity = _original_build_report(cfg)
-    lines = lines_orig.split("\n")
-
-    # Inserisci sezione LightRAG prima del Verdetto
-    verdict_idx = next(
-        (i for i, l in enumerate(lines) if l.startswith("## Verdetto")), len(lines)
-    )
-
-    lr_status, lr_sev = check_lightrag(cfg)
-    lr_icon = "✅" if lr_sev == 0 else ("⚠️" if lr_sev == 1 else "❌")
-    lr_lines = [
-        "",
-        "## LightRAG (semantic search)",
-        f"{lr_icon} {lr_status}",
-    ]
-
-    if lr_sev > 0 and cfg.get("lightrag", {}).get("url"):
-        lr_lines.append(
-            "   Per avviare: sul PC Office → docker compose up -d (nella cartella LightRAG)"
-        )
-
-    lines = lines[:verdict_idx] + lr_lines + [""] + lines[verdict_idx:]
-    severity = max(severity, lr_sev if lr_sev < 2 else 1)  # LightRAG down = warning, non critical
-
-    return "\n".join(lines), severity
-
-
-import requests  # noqa: E402 (import in fondo ok per monkey-patch)
